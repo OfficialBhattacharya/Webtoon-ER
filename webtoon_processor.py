@@ -4,6 +4,7 @@ import requests
 import fitz  # PyMuPDF
 from PIL import Image, ImageChops
 from reportlab.lib.pagesizes import A4
+import shutil
 
 class WebtoonProcessor:
     def __init__(self, base_folder):
@@ -25,15 +26,14 @@ class WebtoonProcessor:
                       self.formatted_png_folder, self.final_pdf_folder]:
             os.makedirs(folder, exist_ok=True)
     
-    def download_images(self, base_url, start_num, end_num, chapter_number):
+    def download_images(self, base_url, chapter_number, start_num="001"):
         """
         Task 1: Download images for a specific chapter
         
         Args:
             base_url: URL template with 'XXX' as placeholder for image number
-            start_num: Starting image number (string)
-            end_num: Ending image number (string)
             chapter_number: Chapter number for folder naming
+            start_num: Starting image number (string), defaults to "001"
         
         Returns:
             Path to the folder containing downloaded images
@@ -41,12 +41,17 @@ class WebtoonProcessor:
         output_folder = os.path.join(self.raw_folder, f"Chapter{chapter_number}")
         os.makedirs(output_folder, exist_ok=True)
         
-        # Create the list of URLs
         start = int(start_num)
-        end = int(end_num)
-        urls = [base_url.replace('XXX', f'{i:03d}') for i in range(start, end + 1)]
+        current_num = start
+        max_failures = 5  # Stop after this many consecutive failures
+        consecutive_failures = 0
         
-        for url in urls:
+        print(f"Starting download of Chapter {chapter_number} from image {start_num}")
+        print("Automatically detecting the last available image...")
+        
+        while consecutive_failures < max_failures:
+            url = base_url.replace('XXX', f'{current_num:03d}')
+            
             try:
                 # Fetch the image
                 response = requests.get(url)
@@ -61,11 +66,19 @@ class WebtoonProcessor:
                     file.write(response.content)
                     
                 print(f'Downloaded {image_name}')
+                consecutive_failures = 0  # Reset failure counter on success
+                current_num += 1
             
             except requests.RequestException as e:
+                consecutive_failures += 1
+                if consecutive_failures >= max_failures:
+                    print(f"Reached end of chapter at image {current_num-1:03d} after {max_failures} consecutive failures")
+                    break
                 print(f'Failed to download {url}: {e}')
+                current_num += 1
         
-        print(f'Finished downloading Chapter {chapter_number}!')
+        end_num = current_num - consecutive_failures - 1
+        print(f'Finished downloading Chapter {chapter_number}! Downloaded images from {start_num} to {end_num:03d}')
         return output_folder
     
     def merge_png_to_pdf(self, folder_path, chapter_number):
@@ -246,7 +259,36 @@ class WebtoonProcessor:
         print(f'Final PDF created successfully at {output_pdf_path}')
         return output_pdf_path
     
-    def process_chapter(self, base_url, start_num, end_num, chapter_number):
+    def cleanup_temp_files(self, chapter_number, keep_raw=False):
+        """
+        Delete temporary files while keeping the essential outputs:
+        1. Long PNG image
+        2. Formatted images
+        3. Final PDF
+        
+        Args:
+            chapter_number: Chapter number to clean up
+            keep_raw: If True, keeps the raw downloaded images (default: False)
+        """
+        print(f"Cleaning up temporary files for Chapter {chapter_number}...")
+        
+        # Paths to check and potentially delete
+        raw_folder = os.path.join(self.raw_folder, f"Chapter{chapter_number}")
+        temp_pdf_path = os.path.join(self.pdf_folder, f"Chapter{chapter_number}_Merged.pdf")
+        
+        # Delete the raw images folder if it exists and keep_raw is False
+        if not keep_raw and os.path.exists(raw_folder):
+            print(f"Deleting raw images folder: {raw_folder}")
+            shutil.rmtree(raw_folder)
+        
+        # Delete the temporary merged PDF if it exists
+        if os.path.exists(temp_pdf_path):
+            print(f"Deleting temporary merged PDF: {temp_pdf_path}")
+            os.remove(temp_pdf_path)
+            
+        print("Cleanup completed!")
+    
+    def process_chapter(self, base_url, chapter_number, start_num="001", cleanup=True):
         """
         Process a complete chapter through all steps:
         1. Download images
@@ -254,12 +296,13 @@ class WebtoonProcessor:
         3. Convert to long PNG
         4. Format into slices
         5. Convert back to final PDF
+        6. Clean up temporary files (optional)
         
         Args:
             base_url: URL template with 'XXX' as placeholder for image number
-            start_num: Starting image number (string)
-            end_num: Ending image number (string)
             chapter_number: Chapter number
+            start_num: Starting image number (string), defaults to "001"
+            cleanup: Whether to delete temporary files after processing (default: True)
             
         Returns:
             Path to the final PDF
@@ -267,7 +310,7 @@ class WebtoonProcessor:
         print(f"Starting to process Chapter {chapter_number}...")
         
         # Task 1: Download images
-        download_folder = self.download_images(base_url, start_num, end_num, chapter_number)
+        download_folder = self.download_images(base_url, chapter_number, start_num)
         
         # Task 2: Merge PNGs to PDF
         merged_pdf_path = self.merge_png_to_pdf(download_folder, chapter_number)
@@ -281,6 +324,10 @@ class WebtoonProcessor:
         # Task 5: Convert formatted PNGs to final PDF
         final_pdf_path = self.formatted_pngs_to_pdf(formatted_folder, chapter_number)
         
+        # Task 6: Clean up temporary files if requested
+        if cleanup:
+            self.cleanup_temp_files(chapter_number)
+        
         print(f"Chapter {chapter_number} processing completed!")
         return final_pdf_path
 
@@ -291,11 +338,26 @@ if __name__ == "__main__":
     # Create a new processor instance
     processor = WebtoonProcessor("E:\\BookClub\\Webtoon\\TeenageMercenary")
     
-    # Process a chapter
+    # Process a chapter (automatically detects last available image)
     processor.process_chapter(
-        "https://official.lowee.us/manga/Mercenary-Enrollment/0000-XXX.png",
-        "001",
-        "032",
-        "0"
+        base_url="https://official.lowee.us/manga/Mercenary-Enrollment/0000-XXX.png",
+        chapter_number="0"
     )
+    
+    # You can also specify a custom start number if needed
+    # processor.process_chapter(
+    #     base_url="https://official.lowee.us/manga/Mercenary-Enrollment/0000-XXX.png",
+    #     chapter_number="1",
+    #     start_num="010"  # Start from the 10th image
+    # )
+    
+    # If you want to keep temporary files, set cleanup=False
+    # processor.process_chapter(
+    #     base_url="https://official.lowee.us/manga/Mercenary-Enrollment/0000-XXX.png",
+    #     chapter_number="2",
+    #     cleanup=False
+    # )
+    
+    # Or run cleanup manually later
+    # processor.cleanup_temp_files("2")
 """ 
