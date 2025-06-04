@@ -261,10 +261,9 @@ class WebtoonProcessor:
     
     def cleanup_temp_files(self, chapter_number, keep_raw=False):
         """
-        Delete temporary files while keeping the essential outputs:
+        Delete temporary files while keeping only the essential outputs:
         1. Long PNG image
-        2. Formatted images
-        3. Final PDF
+        2. Final PDF
         
         Args:
             chapter_number: Chapter number to clean up
@@ -275,6 +274,7 @@ class WebtoonProcessor:
         # Paths to check and potentially delete
         raw_folder = os.path.join(self.raw_folder, f"Chapter{chapter_number}")
         temp_pdf_path = os.path.join(self.pdf_folder, f"Chapter{chapter_number}_Merged.pdf")
+        formatted_folder = os.path.join(self.formatted_png_folder, f"Chapter{chapter_number}")
         
         # Delete the raw images folder if it exists and keep_raw is False
         if not keep_raw and os.path.exists(raw_folder):
@@ -285,8 +285,16 @@ class WebtoonProcessor:
         if os.path.exists(temp_pdf_path):
             print(f"Deleting temporary merged PDF: {temp_pdf_path}")
             os.remove(temp_pdf_path)
+        
+        # Delete the formatted PNG slices folder if it exists
+        if os.path.exists(formatted_folder):
+            print(f"Deleting formatted PNG slices folder: {formatted_folder}")
+            shutil.rmtree(formatted_folder)
             
         print("Cleanup completed!")
+        print("Remaining files:")
+        print(f"  - Long PNG: {os.path.join(self.long_png_folder, f'Chapter{chapter_number}_Merged.png')}")
+        print(f"  - Final PDF: {os.path.join(self.final_pdf_folder, f'Chapter{chapter_number}_Final.pdf')}")
     
     def process_chapter(self, base_url, chapter_number, start_num="001", cleanup=True):
         """

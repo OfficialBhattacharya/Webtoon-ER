@@ -1,0 +1,17 @@
+# Webtoon Processor Configuration
+# Edit the values below to configure your processing task
+
+# Base URL with XXX as placeholder for image numbers
+base_url: "https://official.lowee.us/manga/Mercenary-Enrollment/0000-XXX.png"
+
+# Chapter number (as string)
+chapter_number: "0"
+
+# Output folder path where all files will be saved
+output_folder: "D:\\Webtoon-ER\\Webtoons\\Mercenary_Enrollment"
+
+# Optional: Starting image number (default: "001")
+start_num: "001"
+
+# Optional: Whether to keep temporary files during processing (default: false)
+keep_temp_files: false 
